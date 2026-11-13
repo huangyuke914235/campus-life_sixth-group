@@ -42,3 +42,9 @@ shiguang/apps/api/seed-out/
 shiguang/apps/api/scripts/smoke.js
 /.pkg-stage-*/
 shiguang/backups/
+
+# ── 本地工作目录与归档（不入库）──
+/.pkg-stage/
+/archive/
+/generated-videos/
+/食光有数-设计稿/
