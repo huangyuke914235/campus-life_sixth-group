@@ -1,0 +1,16 @@
+# 将开发入口与调试端口限制在本机。
+services:
+  postgres:
+    ports: ["127.0.0.1:${DEV_POSTGRES_PORT:-5432}:5432"]
+  redis:
+    ports: ["127.0.0.1:${DEV_REDIS_PORT:-6379}:6379"]
+  minio:
+    ports: ["127.0.0.1:${DEV_MINIO_PORT:-9001}:9001"]
+  api:
+    environment:
+      NODE_ENV: development
+      COOKIE_SECURE: "false"
+      CSRF_ENABLED: "true"
+    ports: ["127.0.0.1:${DEV_API_PORT:-3001}:3001"]
+  proxy:
+    ports: ["127.0.0.1:${DEV_PROXY_PORT:-8080}:80"]

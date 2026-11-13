@@ -1,0 +1,32 @@
+# 与基础配置和 TLS 或 Tunnel 入口一起使用。
+services:
+  postgres:
+    restart: always
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    deploy:
+      resources:
+        limits: { memory: 2G }
+  redis:
+    restart: always
+  minio:
+    restart: always
+  api:
+    restart: always
+    environment:
+      NODE_ENV: production
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      COOKIE_SECURE: "true"
+      CSRF_ENABLED: "true"
+      ENABLE_DEMO_ACCOUNTS: "false"
+      SEED_DEMO_DATA: "false"
+    deploy:
+      resources:
+        limits: { memory: 1G }
+  web:
+    restart: always
+    deploy:
+      resources:
+        limits: { memory: 1G }
+  proxy:
+    restart: always

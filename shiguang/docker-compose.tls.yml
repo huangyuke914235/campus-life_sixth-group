@@ -1,0 +1,10 @@
+# 直接 TLS 入口，证书从部署主机只读挂载。
+services:
+  proxy:
+    volumes:
+      - ./infra/nginx-http-redirect.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./infra/nginx-ssl.conf:/etc/nginx/conf.d/ssl.conf:ro
+      - ./infra/certs:/etc/nginx/certs:ro
+    ports:
+      - "80:80"
+      - "443:443"

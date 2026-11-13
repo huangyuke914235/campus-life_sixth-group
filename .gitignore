@@ -1,0 +1,44 @@
+# ── 凭据与证书：绝不入库 ──
+azure-key.txt.txt
+*key*.txt
+*.pem
+*.key
+*.p12
+*.pfx
+infra/certs/
+shiguang/infra/certs/
+
+# ── 环境文件 ──
+shiguang/.env
+shiguang/.env.*
+!shiguang/.env.example
+!shiguang/.env.production.example
+
+# ── 依赖与构建产物 ──
+node_modules/
+dist/
+.next/
+out/
+coverage/
+test-results/
+playwright-report/
+*.tsbuildinfo
+*.log
+.DS_Store
+
+# ── 根目录本地交付物 ──
+# 注意：不要写 *.png / *.jpg，否则会误伤 apps/web/public/images/dishes/ 里的运行必需图片
+/*.pptx
+/*.png
+/generated-images/
+/食光有数-设计稿/
+/lanyard-app/
+campus-life-deploy.zip
+campus-life-deploy.tar.gz
+
+# ── 临时残留 ──
+shiguang/apps/api/seed.tmp.ts
+shiguang/apps/api/seed-out/
+shiguang/apps/api/scripts/smoke.js
+/.pkg-stage-*/
+shiguang/backups/

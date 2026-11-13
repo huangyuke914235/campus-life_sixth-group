@@ -1,0 +1,127 @@
+name: Shiguang CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: shiguang
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: shiguang
+          POSTGRES_PASSWORD: shiguang_ci
+          POSTGRES_DB: shiguang_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U shiguang -d shiguang_test"
+          --health-interval 10s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://shiguang:shiguang_ci@127.0.0.1:5432/shiguang_test?schema=public
+      REDIS_URL: redis://127.0.0.1:6379
+      JWT_ACCESS_SECRET: ci-only-access-secret-not-for-production
+      JWT_REFRESH_SECRET: ci-only-refresh-secret-not-for-production
+      COOKIE_SECURE: 'false'
+      CSRF_ENABLED: 'true'
+      WEB_ORIGIN: http://localhost:3000
+      NEXT_TELEMETRY_DISABLED: '1'
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Enable pnpm
+        run: corepack enable && corepack prepare pnpm@9.12.0 --activate
+      - name: Install dependencies
+        env:
+          PRISMA_SKIP_POSTINSTALL_GENERATE: 'true'
+        run: pnpm install --frozen-lockfile
+      - name: Validate schema and generate Prisma client
+        env:
+          PRISMA_GENERATE_SKIP_AUTOINSTALL: 'true'
+        run: |
+          pnpm exec prisma validate
+          pnpm db:generate
+      - name: Build and typecheck
+        run: |
+          pnpm build
+          pnpm typecheck
+      - name: Unit tests
+        run: pnpm test:unit
+      - name: Apply migrations to the isolated CI database
+        run: pnpm db:deploy
+      - name: Order, pickup and review integration tests
+        env:
+          ORDER_TEST_DATABASE_URL: postgresql://shiguang:shiguang_ci@127.0.0.1:5432/shiguang_test?schema=public
+          REVIEW_TEST_DATABASE_URL: postgresql://shiguang:shiguang_ci@127.0.0.1:5432/shiguang_test?schema=public
+        run: pnpm --filter @shiguang/api exec vitest run src/orders/orders.integration.test.ts src/reviews/reviews.integration.test.ts
+      - name: Verify explicit demo fixture is repeatable
+        env:
+          DEMO_DATABASE_NAME: shiguang_test
+          DEMO_PASSWORD: test-only-fixture-password
+          DEMO_SEED_DATE: '2026-11-12'
+        run: |
+          pnpm db:seed
+          pnpm db:seed
+      - name: Install browser dependencies
+        run: pnpm exec playwright install --with-deps chromium webkit
+      - name: Browser and API end-to-end tests
+        env:
+          STORAGE_LOCAL_DIR: ${{ runner.temp }}/shiguang-uploads
+          E2E_BASE_URL: http://localhost:3000
+          E2E_FIXTURE_DATABASE_NAME: shiguang_test
+          E2E_DEMO_PASSWORD: test-only-fixture-password
+          E2E_STUDENT_PASSWORD: test-only-fixture-password
+          SHIGUANG_API_ORIGIN: http://127.0.0.1:3001
+        run: |
+          node apps/api/dist/main.js > "${RUNNER_TEMP}/shiguang-api.log" 2>&1 &
+          api_pid=$!
+          NODE_ENV=development pnpm --filter @shiguang/web dev > "${RUNNER_TEMP}/shiguang-web.log" 2>&1 &
+          web_pid=$!
+          trap 'kill "$api_pid" "$web_pid" 2>/dev/null || true' EXIT
+          for attempt in {1..60}; do
+            if curl -fsS http://127.0.0.1:3001/api/v1/health/ready >/dev/null &&
+               curl -fsS http://localhost:3000/login >/dev/null; then
+              pnpm test:e2e
+              exit $?
+            fi
+            sleep 2
+          done
+          tail -60 "${RUNNER_TEMP}/shiguang-api.log" "${RUNNER_TEMP}/shiguang-web.log"
+          exit 1
+      - name: Validate deployment configuration and shell syntax
+        env:
+          APP_ENV_FILE: .env.production.example
+          CLOUDFLARE_TUNNEL_TOKEN: ci-configuration-placeholder
+        run: |
+          APP_ENV_FILE=.env.example docker compose --env-file .env.example -f docker-compose.yml -f docker-compose.dev.yml config --quiet
+          docker compose --env-file .env.production.example -f docker-compose.yml -f docker-compose.prod.yml -f docker-compose.tls.yml config --quiet
+          docker compose --env-file .env.production.example -f docker-compose.yml -f docker-compose.prod.yml -f docker-compose.cloudflare.yml config --quiet
+          for script in scripts/*.sh azure/*.sh; do bash -n "$script"; done
+      - name: Build images from the packaged revision
+        env:
+          APP_ENV_FILE: .env.example
+        run: |
+          bash scripts/package.sh "${RUNNER_TEMP}/campus-life-release.tar.gz"
+          cd "${RUNNER_TEMP}"
+          sha256sum -c campus-life-release.tar.gz.sha256
+          tar -xzf campus-life-release.tar.gz
+          cd pkg-shiguang
+          docker compose --env-file .env.example -f docker-compose.yml -f docker-compose.dev.yml build
+      - name: Dependency security audit
+        continue-on-error: true
+        run: pnpm audit --audit-level=high
