@@ -10,6 +10,7 @@
 |---|---|
 | **了解这个项目是干什么的** | [PRD.md](PRD.md) — 背景、目标用户、功能范围、成功指标 |
 | **部署一套新的** | [DEPLOYMENT.md](DEPLOYMENT.md) — 从零到可访问 |
+| **服务器删了/挂了，要重建** | [REBUILD-GUIDE.md](REBUILD-GUIDE.md) — 25 分钟从零拉起 |
 | **接手代码继续开发** | [../HANDOVER.md](../HANDOVER.md) — 环境、账号、踩坑、核心命令 |
 | **知道现在做到哪了** | [DEVELOPMENT-EXECUTION.md](DEVELOPMENT-EXECUTION.md) — 12 项任务验收状态 |
 | **日常运维 / 出问题怎么查** | [OPERATIONS.md](OPERATIONS.md) — 巡检、故障速查、Q&A |
@@ -109,6 +110,7 @@
 | `RETROSPECTIVE.md` | 250 | **复盘**：5 个转折点、10 类教训、可迁移方法论 |
 | `LEARNING-GUIDE.md` | 400 | **技术入门**：餐厅类比、请求全流程、代码导航、术语表 |
 | `LESSONS.md` | 250 | **经验卡片**：22 条，按症状检索 |
+| `REBUILD-GUIDE.md` | 400 | **重建指南**：建 VM→装 Docker→拉代码→配 env→恢复数据→修菜单 |
 | `PROGRESS.md` | 160 | 历史进度记录 |
 | `AUDIT-2026-11-11.md` | 367 | 第三方审计（存档） |
 | `../HANDOVER.md` | 453 | 全量交接 |
