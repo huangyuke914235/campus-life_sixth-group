@@ -80,12 +80,12 @@ ssh azureuser@<IP> 'sudo mkdir -p /opt/shiguang && sudo chown azureuser:azureuse
 ```
 
 ```bash
-ssh azureuser@<IP> 'cd /opt/shiguang && git clone https://github.com/huangyuke914235/campus-life_sixth-group.git src && ls src/shiguang | head -6'
+ssh azureuser@<IP> 'cd /opt/shiguang && git clone --depth 1 https://github.com/huangyuke914235/campus-life_sixth-group.git src   # --depth 1 只拉最新（57MB），不拉历史 && ls src/shiguang | head -6'
 ```
 
 **注意**：用 HTTPS clone（服务器上没有 GitHub SSH key）。如果 HTTPS 慢，改用：
 ```bash
-git clone https://ghproxy.net/https://github.com/huangyuke914235/campus-life_sixth-group.git src
+git clone --depth 1 https://ghproxy.net/https://github.com/huangyuke914235/campus-life_sixth-group.git src
 ```
 
 **目录约定**：
