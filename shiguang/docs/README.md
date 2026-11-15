@@ -14,6 +14,8 @@
 | **知道现在做到哪了** | [DEVELOPMENT-EXECUTION.md](DEVELOPMENT-EXECUTION.md) — 12 项任务验收状态 |
 | **日常运维 / 出问题怎么查** | [OPERATIONS.md](OPERATIONS.md) — 巡检、故障速查、Q&A |
 | **回顾整个项目怎么做成的** | [RETROSPECTIVE.md](RETROSPECTIVE.md) — 关键转折点与经验教训 |
+| **我不懂 Web 开发，但想看懂这个项目** | [LEARNING-GUIDE.md](LEARNING-GUIDE.md) — 用餐厅类比讲清前端后端数据库 |
+| **想把经验搬到下一个项目** | [LESSONS.md](LESSONS.md) — 22 张可检索的经验卡片 |
 
 ---
 
@@ -105,6 +107,8 @@
 | `DEVELOPMENT-EXECUTION.md` | 171 | 12 项任务执行书 |
 | `CHANGELOG.md` | 234 | 开发过程（四阶段 + 16 个坑） |
 | `RETROSPECTIVE.md` | 250 | **复盘**：5 个转折点、10 类教训、可迁移方法论 |
+| `LEARNING-GUIDE.md` | 400 | **技术入门**：餐厅类比、请求全流程、代码导航、术语表 |
+| `LESSONS.md` | 250 | **经验卡片**：22 条，按症状检索 |
 | `PROGRESS.md` | 160 | 历史进度记录 |
 | `AUDIT-2026-11-11.md` | 367 | 第三方审计（存档） |
 | `../HANDOVER.md` | 453 | 全量交接 |
