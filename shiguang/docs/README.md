@@ -88,20 +88,21 @@
 
 | 文件 | 行数 | 定位 |
 |---|---|---|
-| `PRD.md` | ~200 | 产品需求 |
-| `ADR.md` | ~180 | 架构决策记录 |
-| `ARCHITECTURE.md` | 52 | 系统架构 |
+| `PRD.md` | 217 | 产品需求 |
+| `ADR.md` | 199 | 架构决策记录 |
+| `ARCHITECTURE.md` | 188 | 系统架构 + 模块清单 + 数据流 + 部署拓扑 |
 | `RECOMMENDATION.md` | 82 | 推荐算法 |
-| `DATABASE.md` | 68 | 数据模型 |
+| `DATABASE.md` | 145 | 数据模型 + 字段字典 + 常见查询 |
 | `API.md` | 84 | 接口 |
-| `DESIGN-SYSTEM.md` | ~190 | 视觉规范 |
-| `OPERATIONS.md` | ~200 | 运维手册 |
-| `USER_GUIDE.md` | 38 | 用户操作 |
+| `DESIGN-SYSTEM.md` | 254 | 视觉规范 |
+| `OPERATIONS.md` | 265 | 运维手册 |
+| `USER_GUIDE.md` | 289 | 三角色完整操作 + FAQ |
 | `PILOT-PLAYBOOK.md` | 189 | 试点准备 |
-| `TESTING.md` | 43 | 测试策略 |
+| `TESTING.md` | 173 | 测试分层、45+20 用例明细、未覆盖项 |
 | `DEPLOYMENT.md` | 96 | 部署 |
 | `DEVELOPMENT-ROADMAP.md` | 53 | 6 周路线图 |
 | `DEVELOPMENT-EXECUTION.md` | 171 | 12 项任务执行书 |
+| `CHANGELOG.md` | 234 | 开发过程（四阶段 + 16 个坑） |
 | `PROGRESS.md` | 160 | 历史进度记录 |
 | `AUDIT-2026-11-11.md` | 367 | 第三方审计（存档） |
 | `../HANDOVER.md` | 453 | 全量交接 |
