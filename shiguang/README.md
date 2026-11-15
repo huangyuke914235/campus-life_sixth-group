@@ -142,3 +142,29 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml exec -T \
 ## 文档索引
 
 [架构](docs/ARCHITECTURE.md) · [数据库](docs/DATABASE.md) · [API](docs/API.md) · [推荐算法](docs/RECOMMENDATION.md) · [部署](docs/DEPLOYMENT.md) · [测试](docs/TESTING.md) · [用户手册](docs/USER_GUIDE.md) · [进度与验收](docs/PROGRESS.md)
+
+## 从零构建（顺序不能变）
+
+干净检出后必须按这个顺序，否则 `typecheck` 会报 `@prisma/client has no exported member 'UserRole'`：
+
+```bash
+cd shiguang
+corepack pnpm install --frozen-lockfile   # 1. 装依赖
+pnpm exec prisma generate                  # 2. 生成 Prisma Client（缺这步 api 类型全错）
+pnpm --filter @shiguang/shared build       # 3. 构建共享包（缺这步 api 找不到 @shiguang/shared）
+pnpm -r typecheck                          # 4. 类型检查
+pnpm build                                 # 5. 构建 web + api
+```
+
+**为什么顺序重要**：
+- 第 2 步生成 `node_modules/.prisma/client`，`apps/api` 的类型依赖它
+- 第 3 步生成 `packages/shared/dist`，`apps/api` 通过 `@shiguang/shared` 引用它
+- 这两步的产物都在 `.gitignore` 里（不进仓库），所以**每次干净检出都要重跑**
+
+**实测**（2026-11-15，从 GitHub 干净克隆）：
+```
+pnpm install --frozen-lockfile   → Done in 1m 1s
+prisma generate                  → Generated in 367ms
+shared build                     → tsc 通过
+pnpm -r typecheck                → 0 error
+```

@@ -155,7 +155,7 @@ pnpm test:e2e
 | 任务编号与状态 | 修改路径或版本 | 实际运行及结果 | 未验证项、恢复条件与下一步 |
 | --- | --- | --- | --- |
 | 00 · 已验收 | 盘点完成 | `git ls-files` = 1（仅 LICENSE）；`pnpm-lock.yaml` 8812 行已存在；CI 在仓库根 `.github/workflows/shiguang-ci.yml`；`uploads.module.ts` 未被忽略；corepack 可用 | 源码未纳入 Git（用户明确不交代码库，故只验证"干净导出可构建"路径） |
-| 01 · 部分完成 | 锁文件与 CI 位置已由前序完成 | **`corepack pnpm install --frozen-lockfile --lockfile-only` 通过**（pnpm 9.12.0，4 个 workspace，1.5s 无冲突）；打包产出 153 文件 / 12 张菜品图 / `.env` 与 `*.pem` 均为 0 | 待做：真实依赖安装（`--lockfile-only` 只校验一致性）、三套 compose 合并校验（本地无 docker daemon） |
+| **01 · 已验收** | 锁文件、CI 位置；`README.md` 补充构建顺序 | **从 GitHub 干净克隆实测通过**：`pnpm install --frozen-lockfile` 1m1s（真实安装，非 dry-run）→ `prisma generate` 367ms → `shared build` 通过 → `pnpm -r typecheck` **0 error**。打包 157 文件 / 12 图 / `.env` 与 `*.pem` 均为 0 | 未做：三套 compose 合并校验（本地无 docker daemon） |
 | **02 · 已验收** | `scripts/entrypoint-api.sh`（无 seed）、`azure/deploy-app.sh`（无 seed）、`apps/api/src/common/runtime-config.ts`（启动校验 + 两个显式豁免开关） | **线上实测**：重新打包部署、重建 api/web 镜像、重启 nginx 后，`Dish 59 / Review 120 / Menu 39 / UserPreference 7` 全部保留；api·postgres·redis·web 均 `Up (healthy)`，health 返回 ok | 未验证：从生产备份恢复到隔离库（已在本地用自造数据演练过流程） |
 | **03 · 已验收** | `dishes.module.ts`（update 白名单）、`users.module.ts`（update select）、`admin.module.ts`（updateUser select）；新增 `dishes.integration.test.ts`（6 个权限用例） | **真实 PostgreSQL 验证**：商户改自己档口成功、跨档口 403 且数据不变、学生 403、夹带 `stallId` 被丢弃、夹带 `avgRating/ratingCount/status` 被丢弃、管理员可改 | 响应字段投影由 `select` 保证，未写接口级快照测试 |
 | 04 · 实现完成待验证 | `packages/shared/src/order.ts`（campusDate/campusClock/campusMealType/campusTime，Asia/Shanghai）、`recommendations.module.ts`（改用 campusMealType）、`checkout/page.tsx`、`tasks.module.ts`（按取餐时段截止） | 43 个单测通过；三包 tsc 0 error | 未验证：固定时钟下的跨日、早餐边界、UTC 运行环境、客户端异时区 |
