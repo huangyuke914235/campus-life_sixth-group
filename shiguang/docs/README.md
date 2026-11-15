@@ -13,6 +13,7 @@
 | **接手代码继续开发** | [../HANDOVER.md](../HANDOVER.md) — 环境、账号、踩坑、核心命令 |
 | **知道现在做到哪了** | [DEVELOPMENT-EXECUTION.md](DEVELOPMENT-EXECUTION.md) — 12 项任务验收状态 |
 | **日常运维 / 出问题怎么查** | [OPERATIONS.md](OPERATIONS.md) — 巡检、故障速查、Q&A |
+| **回顾整个项目怎么做成的** | [RETROSPECTIVE.md](RETROSPECTIVE.md) — 关键转折点与经验教训 |
 
 ---
 
@@ -103,6 +104,7 @@
 | `DEVELOPMENT-ROADMAP.md` | 53 | 6 周路线图 |
 | `DEVELOPMENT-EXECUTION.md` | 171 | 12 项任务执行书 |
 | `CHANGELOG.md` | 234 | 开发过程（四阶段 + 16 个坑） |
+| `RETROSPECTIVE.md` | 250 | **复盘**：5 个转折点、10 类教训、可迁移方法论 |
 | `PROGRESS.md` | 160 | 历史进度记录 |
 | `AUDIT-2026-11-11.md` | 367 | 第三方审计（存档） |
 | `../HANDOVER.md` | 453 | 全量交接 |
