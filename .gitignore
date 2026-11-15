@@ -28,13 +28,13 @@ playwright-report/
 
 # ── 根目录本地交付物 ──
 # 注意：不要写 *.png / *.jpg，否则会误伤 apps/web/public/images/dishes/ 里的运行必需图片
-/*.pptx
-/*.png
+# (已放开：/*.pptx 允许入库)
+# (已放开：/*.png 允许入库)
 /generated-images/
 /食光有数-设计稿/
 /lanyard-app/
 campus-life-deploy.zip
-campus-life-deploy.tar.gz
+# (已放开：campus-life-deploy.tar.gz 允许入库)
 
 # ── 临时残留 ──
 shiguang/apps/api/seed.tmp.ts
