@@ -1,0 +1,18 @@
+# Cloudflare Tunnel 部署（推荐：无需公网 IP、无需开放 80/443）
+#
+# 用法：
+#   docker compose -f docker-compose.yml -f docker-compose.cloudflare.yml up -d --build
+#
+# 前置：在 Cloudflare 控制台 Zero Trust → Networks → Tunnels 新建隧道，拿到 token，
+# 填入 .env 的 CLOUDFLARE_TUNNEL_TOKEN，并在隧道 Public Hostname 里配置：
+#   campus-life.ccwu.cc  ->  http://proxy:80
+services:
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: ["tunnel", "--no-autoupdate", "run", "--token", "${CLOUDFLARE_TUNNEL_TOKEN}"]
+    depends_on:
+      - proxy
+    # 与 proxy 同网络，隧道内可直接访问 http://proxy:80
+    networks:
+      - default

@@ -1,0 +1,63 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: shiguang
+          POSTGRES_PASSWORD: shiguang_ci
+          POSTGRES_DB: shiguang_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U shiguang -d shiguang_test"
+          --health-interval 10s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+
+    env:
+      DATABASE_URL: postgresql://shiguang:shiguang_ci@localhost:5432/shiguang_test?schema=public
+      REDIS_URL: redis://localhost:6379
+      JWT_ACCESS_SECRET: ci-only-access-secret-not-for-production
+      JWT_REFRESH_SECRET: ci-only-refresh-secret-not-for-production
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Enable pnpm
+        run: corepack enable && corepack prepare pnpm@9.12.0 --activate
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+      - name: Generate Prisma client
+        run: pnpm exec prisma generate
+      - name: Validate Prisma schema
+        run: pnpm exec prisma validate
+      - name: Build shared package (required by api typecheck)
+        run: pnpm --filter @shiguang/shared build
+      - name: TypeScript typecheck
+        run: pnpm -r typecheck
+      - name: Unit tests
+        run: pnpm --filter @shiguang/shared test && pnpm --filter @shiguang/api test
+      - name: Database migration (integration)
+        run: pnpm exec prisma migrate deploy
+      - name: Seed demo data (integration)
+        env:
+          DEMO_PASSWORD: ci-only-demo-password
+        run: pnpm db:seed
+      - name: Build api + web
+        run: pnpm --filter @shiguang/api build && pnpm --filter @shiguang/web build
+      - name: Dependency security audit
+        # 不用 `|| true` 吞掉结果：失败会标红但用 continue-on-error 不阻断主流程，
+        # 保证漏洞在 CI 页面上始终可见。
+        continue-on-error: true
+        run: pnpm audit --audit-level=high

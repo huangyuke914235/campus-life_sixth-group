@@ -1,0 +1,28 @@
+node_modules
+**/node_modules
+**/dist
+.next
+.git
+.gitignore
+.npm-cache*
+uploads
+coverage
+playwright-report
+test-results
+*.log
+.env
+.env.local
+.env.production
+backups
+
+# ── 凭据与证书：绝不进入 build context ──
+infra/certs
+**/*.pem
+**/*.key
+azure/
+tests/e2e/.auth/
+
+# ── 临时残留 ──
+apps/api/seed.tmp.ts
+apps/api/seed-out/
+apps/api/scripts/smoke.js

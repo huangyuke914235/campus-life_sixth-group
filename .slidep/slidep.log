@@ -1,0 +1,10 @@
+=== boot pid=35336 ts=2026-11-10 22:09:27.844 cwd=e:\campus-life_sixth-group argv=C:\Users\20251\.workbuddy\binaries\node\versions\22.22.2-6\node_modules\@tencent\slidep\dist\index.js inspect E:/campus-life_sixth-group/95f971a57324cb60ec91808237dce34b.pptx --out C:/Users/20251/AppData/Local/Temp/slidep-inspect.BiLCsX ===
+[2026-11-10 22:09:27.842] [INFO ] [pid=35336] [server-url] baseUrl=http://127.0.0.1:39099 source=env
+=== boot pid=31736 ts=2026-11-10 22:09:33.427 cwd=e:\campus-life_sixth-group argv=C:\Users\20251\.workbuddy\binaries\node\versions\22.22.2-6\node_modules\@tencent\slidep\dist\index.js inspect E:/campus-life_sixth-group/食光有数-项目汇报.pptx --out C:/Users/20251/AppData/Local/Temp/slidep-inspect.GvMxD4 ===
+[2026-11-10 22:09:33.425] [INFO ] [pid=31736] [server-url] baseUrl=http://127.0.0.1:39099 source=env
+=== boot pid=35580 ts=2026-11-10 22:09:34.786 cwd=e:\campus-life_sixth-group argv=C:\Users\20251\.workbuddy\binaries\node\versions\22.22.2-6\node_modules\@tencent\slidep\dist\index.js inspect E:/campus-life_sixth-group/食光有数-项目汇报-按模板.pptx --out C:/Users/20251/AppData/Local/Temp/slidep-inspect.lUN91Y ===
+[2026-11-10 22:09:34.784] [INFO ] [pid=35580] [server-url] baseUrl=http://127.0.0.1:39099 source=env
+=== boot pid=33236 ts=2026-11-10 22:20:55.192 cwd=e:\campus-life_sixth-group argv=C:\Users\20251\.workbuddy\binaries\node\versions\22.22.2-6\node_modules\@tencent\slidep\dist\index.js inspect E:/campus-life_sixth-group/食光有数-项目汇报-严格按模板.pptx --out C:/Users/20251/AppData/Local/Temp/slidep-inspect.DQIKBF ===
+[2026-11-10 22:20:55.190] [INFO ] [pid=33236] [server-url] baseUrl=http://127.0.0.1:39099 source=env
+=== boot pid=35548 ts=2026-11-11 17:35:36.843 cwd=e:\campus-life_sixth-group argv=C:\Users\20251\.workbuddy\binaries\node\versions\22.22.2-6\node_modules\@tencent\slidep\dist\index.js inspect E:/campus-life_sixth-group/食光有数-项目汇报-最终版.pptx --out C:/Users/20251/AppData/Local/Temp/slidep-inspect.ezL6io ===
+[2026-11-11 17:35:36.841] [INFO ] [pid=35548] [server-url] baseUrl=http://127.0.0.1:39099 source=env

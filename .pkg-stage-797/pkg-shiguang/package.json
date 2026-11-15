@@ -1,0 +1,33 @@
+{
+  "name": "shiguang",
+  "version": "1.0.0",
+  "private": true,
+  "description": "食光有数 · 荔园智慧膳食服务平台",
+  "packageManager": "pnpm@9.12.0",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "dev": "concurrently -n api,web -c blue,green \"pnpm --filter @shiguang/api dev\" \"pnpm --filter @shiguang/web dev\"",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm --filter @shiguang/shared test && pnpm --filter @shiguang/api test",
+    "test:unit": "pnpm --filter @shiguang/shared test && pnpm --filter @shiguang/api test",
+    "test:e2e": "playwright test",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:deploy": "prisma migrate deploy",
+    "db:seed": "tsx prisma/seed.ts",
+    "db:reset": "prisma migrate reset --force"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.65.0",
+    "@types/node": "^22.9.0",
+    "concurrently": "^9.1.0",
+    "prettier": "^3.3.3",
+    "prisma": "^5.22.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.5"
+  }
+}

@@ -1,0 +1,724 @@
+// 食光有数 · 荔园智慧膳食服务平台
+// 全平台金额统一使用「分」(Int, priceCents)，避免浮点误差。
+// 订单明细保存成交价快照，菜品后续改价不影响历史订单。
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────── 枚举 ───────────────────────────
+
+enum UserRole {
+  STUDENT
+  MERCHANT
+  ADMIN
+}
+
+enum MealType {
+  BREAKFAST
+  LUNCH
+  DINNER
+}
+
+enum SpiceLevel {
+  NONE
+  MILD
+  MEDIUM
+  HOT
+  EXTRA_HOT
+}
+
+enum DietPattern {
+  OMNIVORE
+  VEGETARIAN
+  VEGAN
+  PESCATARIAN
+  HALAL
+  OTHER
+}
+
+enum RestrictionKind {
+  DISLIKE      // 忌口（不吃，但不涉及过敏）
+  ALLERGEN     // 过敏原 —— 硬性过滤，系统不得覆盖
+  RELIGIOUS
+  MEDICAL
+}
+
+enum RestrictionSource {
+  USER_EXPLICIT // 用户明确设置，系统推断不得覆盖
+  SYSTEM_INFERRED
+}
+
+enum DishStatus {
+  DRAFT
+  ACTIVE
+  OFF_SHELF
+}
+
+enum NutritionSource {
+  ESTIMATED   // 估算 / 演示数据
+  CANTEEN_PROVIDED
+  LAB_TESTED
+}
+
+enum MenuStatus {
+  DRAFT
+  PUBLISHED
+  CLOSED
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PREPARING
+  READY
+  COMPLETED
+  CANCELLED
+  EXPIRED
+}
+
+enum PaymentStatus {
+  UNPAID
+  MOCK_PAID
+  PAID
+  REFUNDED
+}
+
+enum ReviewSource {
+  VERIFIED_ORDER // 已核验订单，参与菜品综合评分与推荐
+  OFFLINE        // 线下用餐补评，频率受限、单独统计
+}
+
+enum ReviewStatus {
+  VISIBLE
+  HIDDEN
+  PENDING_REVIEW
+}
+
+enum FeelingGroup {
+  OVERALL
+  TASTE
+  PORTION
+  BODY
+}
+
+enum BehaviorType {
+  VIEW_DISH
+  FAVORITE_ADD
+  FAVORITE_REMOVE
+  ADD_TO_CART
+  ORDER_CREATE
+  ORDER_CANCEL
+  REVIEW_SUBMIT
+  RECO_SHOWN
+  RECO_CLICK
+  RECO_DISLIKE
+}
+
+enum NotificationType {
+  ORDER_CONFIRMED
+  ORDER_PREPARING
+  ORDER_READY
+  ORDER_COMPLETED
+  ORDER_CANCELLED
+  REVIEW_REMINDER
+  CANTEEN_ANNOUNCEMENT
+  SYSTEM
+}
+
+enum AnnouncementScope {
+  ALL
+  STUDENTS
+  MERCHANTS
+  CANTEEN
+}
+
+enum TokenStatus {
+  ACTIVE
+  USED
+  EXPIRED
+  REVOKED
+}
+
+// ─────────────────────── 用户与口味画像 ───────────────────────
+
+model User {
+  id             String    @id @default(cuid())
+  email          String    @unique
+  passwordHash   String    // Argon2id
+  displayName    String
+  studentNo      String?   @unique // 学号绑定（预留）
+  avatarUrl      String?
+  role           UserRole  @default(STUDENT)
+  isActive       Boolean   @default(true)
+  lastLoginAt    DateTime?
+  onboardedAt    DateTime? // 完成口味问卷的时间
+  privacyDeleteAt DateTime? // 用户数据删除请求时间
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  preference     UserPreference?
+  tasteProfile   UserTasteProfile?
+  restrictions   DietaryRestriction[]
+  stallAssignments Stall[]          // 商户可管理的档口（RBAC 数据边界）
+  orders         Order[]
+  reviews        Review[]
+  favorites      Favorite[]
+  behaviors      UserBehavior[]
+  recommendationLogs RecommendationLog[]
+  notifications  Notification[]
+  refreshTokens  RefreshToken[]
+  auditLogs      AuditLog[]        @relation("AuditActor")
+  announcements  SystemAnnouncement[] @relation("AnnouncementAuthor")
+
+  @@index([role])
+  @@index([createdAt])
+}
+
+model RefreshToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique // 只存哈希，不存明文
+  userAgent String?
+  ip        String?
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+}
+
+/// 用户主动设置的偏好（问卷 / 设置页）。系统推断值不得写入本表。
+model UserPreference {
+  id                String      @id @default(cuid())
+  userId            String      @unique
+  cuisines          String[]    @default([]) // 川菜/粤菜/江浙…
+  staplePreferences String[]    @default([]) // 米饭/面食/粉类/汤类
+  ingredientLikes   String[]    @default([])
+  ingredientDislikes String[]   @default([])
+  spiceTolerance    Int         @default(0)  // 0–5
+  sweetness         Int         @default(2)  // 0–5
+  saltiness         Int         @default(2)  // 0–5
+  oilTolerance      Int         @default(3)  // 0–5
+  flavorIntensity   Int         @default(2)  // 0 清淡 – 5 浓郁
+  specialLikes      String[]    @default([]) // 香菜/葱/蒜
+  budgetMinCents    Int         @default(1000)
+  budgetMaxCents    Int         @default(2500)
+  preferredCanteenIds String[]  @default([])
+  preferredStallIds String[]    @default([])
+  usualMealTimes    String[]    @default([])
+  priority          String      @default("TASTE") // PRICE/TASTE/NUTRITION/CONVENIENCE
+  adventurous       Boolean     @default(false)   // 是否爱尝新
+  dietPattern       DietPattern @default(OMNIVORE)
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  user              User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+/// 系统推断画像：由评分、体感、收藏、点餐频次平滑更新。
+/// 与 UserPreference 严格分离，用户可一键重置本表。
+model UserTasteProfile {
+  id                  String   @id @default(cuid())
+  userId              String   @unique
+  tagWeights          Json     @default("{}") // { "鸡肉": 0.82, "微辣": 0.74, "米饭": 0.91 }
+  oilToleranceInferred Float   @default(0.5)  // 0–1，归一化
+  spiceAffinity       Float    @default(0.5)
+  saltSensitivity     Float    @default(0.5)
+  flavorIntensity     Float    @default(0.5)
+  portionPreference   Float    @default(0.5)
+  vegetableAffinity   Float    @default(0.5)
+  proteinAffinity     Float    @default(0.5)
+  noveltyAffinity     Float    @default(0.5)
+  confidence          Float    @default(0.0)   // 样本量置信度 0–1
+  feedbackCount       Int      @default(0)
+  resetAt             DateTime?
+  lastDecayAt         DateTime @default(now())
+  lastUpdatedAt       DateTime @default(now())
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+/// 忌口与过敏原。ALLERGEN 为硬性过滤条件，永不参与加权评分。
+model DietaryRestriction {
+  id        String              @id @default(cuid())
+  userId    String
+  kind      RestrictionKind
+  value     String              // 花生 / 乳糖 / 香菜 / 甲壳类…
+  source    RestrictionSource   @default(USER_EXPLICIT)
+  note      String?
+  createdAt DateTime            @default(now())
+
+  user      User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, kind, value])
+  @@index([userId, kind])
+}
+
+// ─────────────────────── 食堂 / 档口 / 菜品 ───────────────────────
+
+model Canteen {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  location    String
+  coverUrl    String?
+  openTime    String   // "07:00"
+  closeTime   String   // "20:30"
+  isOpen      Boolean  @default(true)
+  notice      String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  stalls      Stall[]
+  orders      Order[]
+  announcements SystemAnnouncement[]
+}
+
+model Stall {
+  id          String   @id @default(cuid())
+  canteenId   String
+  name        String
+  description String?
+  floor       String?
+  windowNo    String?
+  openTime    String?
+  closeTime   String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  canteen     Canteen  @relation(fields: [canteenId], references: [id], onDelete: Restrict)
+  dishes      Dish[]
+  menus       Menu[]
+  pickupSlots PickupSlot[]
+  orders      Order[]
+  managers    User[]   // 商户账号被授权的档口（隐式多对多）
+  announcements SystemAnnouncement[]
+
+  @@unique([canteenId, name])
+  @@index([canteenId])
+}
+
+model Dish {
+  id            String      @id @default(cuid())
+  stallId       String
+  name          String
+  description   String?
+  imageUrl      String?
+  priceCents    Int
+  category      String      // 米饭/面食/轻食/热炒/汤品/早餐
+  cuisine       String?
+  status        DishStatus  @default(ACTIVE)
+  spiceLevel    SpiceLevel  @default(NONE)
+  spiceScore    Int         @default(0) // 0–5，参与口味匹配
+  oilScore      Int         @default(2) // 0–5，体感反馈降权用
+  saltScore     Int         @default(2)
+  sweetnessScore Int        @default(0)
+  flavorIntensity Int       @default(2)
+  portionScore  Int         @default(3) // 1 偏少 – 5 偏多
+  isNew         Boolean     @default(false)
+  isVegetarian  Boolean     @default(false)
+  verifiedDietPatterns DietPattern[] @default([])
+  dietVerifiedAt DateTime?
+  isHighProtein Boolean     @default(false)
+  allergens     String[]    @default([])
+  ingredients   String[]    @default([])  // 冗余便于搜索，明细见 DishIngredient
+  avgRating     Float       @default(0)
+  ratingCount   Int         @default(0)
+  verifiedRatingCount Int   @default(0)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  stall         Stall       @relation(fields: [stallId], references: [id], onDelete: Restrict)
+  ingredientRows DishIngredient[]
+  nutrition     DishNutrition?
+  tags          DishTag[]
+  menuItems     MenuItem[]
+  inventories   Inventory[]
+  orderItems    OrderItem[]
+  reviews       Review[]
+  favorites     Favorite[]
+  behaviors     UserBehavior[]
+  recommendationItems RecommendationItem[]
+
+  @@unique([stallId, name])
+  @@index([status, category])
+  @@index([priceCents])
+  @@index([avgRating])
+}
+
+model DishIngredient {
+  id        String  @id @default(cuid())
+  dishId    String
+  name      String
+  isMain    Boolean @default(false)
+  sortOrder Int     @default(0)
+
+  dish      Dish    @relation(fields: [dishId], references: [id], onDelete: Cascade)
+
+  @@unique([dishId, name])
+  @@index([name])
+}
+
+model DishNutrition {
+  id            String          @id @default(cuid())
+  dishId        String          @unique
+  energyKcal    Float
+  proteinG      Float
+  fatG          Float
+  carbG         Float
+  fiberG        Float?
+  sodiumMg      Float?
+  source        NutritionSource @default(ESTIMATED)
+  sourceNote    String?         // 必填说明：仅为示例或估算
+  isEstimated   Boolean         @default(true)
+  updatedAt     DateTime        @updatedAt
+
+  dish          Dish            @relation(fields: [dishId], references: [id], onDelete: Cascade)
+}
+
+model DishTag {
+  id       String @id @default(cuid())
+  name     String @unique
+  category String // CUISINE / FLAVOR / INGREDIENT / FUNCTION
+  dishes   Dish[]
+}
+
+// ─────────────────────── 菜单 / 库存 / 时段 ───────────────────────
+
+model Menu {
+  id        String     @id @default(cuid())
+  stallId   String
+  date      DateTime   @db.Date
+  mealType  MealType
+  status    MenuStatus @default(DRAFT)
+  publishedAt DateTime?
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  stall     Stall      @relation(fields: [stallId], references: [id], onDelete: Restrict)
+  items     MenuItem[]
+
+  @@unique([stallId, date, mealType])
+  @@index([date, mealType, status])
+}
+
+model MenuItem {
+  id          String  @id @default(cuid())
+  menuId      String
+  dishId      String
+  isAvailable Boolean @default(true)
+  sortOrder   Int     @default(0)
+
+  menu        Menu    @relation(fields: [menuId], references: [id], onDelete: Cascade)
+  dish        Dish    @relation(fields: [dishId], references: [id], onDelete: Restrict)
+
+  @@unique([menuId, dishId])
+  @@index([dishId])
+}
+
+/// 库存按「菜品 + 日期 + 餐次」独立记账，订单创建与取消都在事务内增减。
+model Inventory {
+  id          String   @id @default(cuid())
+  dishId      String
+  date        DateTime @db.Date
+  mealType    MealType
+  total       Int
+  remaining   Int
+  version     Int      @default(0) // 乐观锁，防超卖
+  updatedAt   DateTime @updatedAt
+
+  dish        Dish     @relation(fields: [dishId], references: [id], onDelete: Restrict)
+
+  @@unique([dishId, date, mealType])
+  @@index([date, mealType])
+}
+
+model PickupSlot {
+  id          String   @id @default(cuid())
+  stallId     String
+  date        DateTime @db.Date
+  mealType    MealType
+  startTime   String   // "11:30"
+  endTime     String   // "11:45"
+  capacity    Int
+  booked      Int      @default(0)
+  cutoffMinutes Int    @default(15)
+  isClosed    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  stall       Stall    @relation(fields: [stallId], references: [id], onDelete: Restrict)
+  orders      Order[]
+
+  // 不同餐次可以有相同起止时间，唯一键必须包含 mealType
+  @@unique([stallId, date, mealType, startTime])
+  @@index([date, mealType])
+}
+
+// ─────────────────────── 订单 / 取餐 / 支付预留 ───────────────────────
+
+model Order {
+  id              String        @id @default(cuid())
+  number          String        @unique // SG + 日期 + 序列
+  userId          String
+  stallId         String
+  canteenId       String
+  pickupSlotId    String
+  status          OrderStatus   @default(PENDING)
+  paymentStatus   PaymentStatus @default(UNPAID)
+  totalCents      Int           // 明细快照之和
+  idempotencyKey  String        // 同一账号内防重复下单
+  requestFingerprint String?   // 旧订单可能没有请求指纹
+  mealType        MealType
+  scheduledDate   DateTime      @db.Date
+  note            String?
+  cancelledReason String?
+  confirmedAt     DateTime?
+  readyAt         DateTime?
+  completedAt     DateTime?
+  cancelledAt     DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  user            User          @relation(fields: [userId], references: [id], onDelete: Restrict)
+  stall           Stall         @relation(fields: [stallId], references: [id], onDelete: Restrict)
+  canteen         Canteen       @relation(fields: [canteenId], references: [id], onDelete: Restrict)
+  pickupSlot      PickupSlot    @relation(fields: [pickupSlotId], references: [id], onDelete: Restrict)
+  items           OrderItem[]
+  pickupToken     PickupToken?
+  reviews         Review[]
+  paymentOrders   PaymentOrder[]
+
+  @@unique([userId, idempotencyKey])
+  @@index([userId, createdAt])
+  @@index([stallId, status])
+  @@index([status, createdAt])
+}
+
+model OrderItem {
+  id              String @id @default(cuid())
+  orderId         String
+  dishId          String
+  dishName        String // 名称快照
+  quantity        Int
+  unitPriceCents  Int    // 成交价快照
+  subtotalCents   Int
+
+  order           Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  dish            Dish   @relation(fields: [dishId], references: [id], onDelete: Restrict)
+  reviews         Review[]
+
+  @@unique([orderId, dishId])
+  @@index([dishId])
+}
+
+model PickupToken {
+  id          String      @id @default(cuid())
+  orderId     String      @unique
+  code        String      @unique // 6 位数字
+  qrPayload   String
+  status      TokenStatus @default(ACTIVE)
+  expiresAt   DateTime
+  usedAt      DateTime?
+  usedByUserId String?
+  createdAt   DateTime    @default(now())
+
+  order       Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt, status])
+}
+
+/// 支付扩展点：第一版只写 MOCK / 到店付款记录，绝不声称已接入真实支付。
+model PaymentOrder {
+  id            String        @id @default(cuid())
+  orderId       String
+  provider      String        // mock | wechat | alipay | campus_card
+  providerOrderNo String?
+  amountCents   Int
+  status        PaymentStatus @default(UNPAID)
+  isMock        Boolean       @default(true)
+  rawPayload    Json?
+  paidAt        DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  order         Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+}
+
+// ─────────────────────── 评价 / 体感 / 行为 ───────────────────────
+
+model Review {
+  id            String        @id @default(cuid())
+  userId        String
+  dishId        String
+  orderId       String?       // 线下补评可空
+  orderItemId   String?
+  source        ReviewSource  @default(VERIFIED_ORDER)
+  rating        Int           // 1–10（一星一个推荐等级）
+  comment       String?       // ≤120 字
+  status        ReviewStatus  @default(VISIBLE)
+  isEdited      Boolean       @default(false)
+  moderatedBy   String?
+  moderatedAt   DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  user          User          @relation(fields: [userId], references: [id], onDelete: Restrict)
+  dish          Dish          @relation(fields: [dishId], references: [id], onDelete: Restrict)
+  order         Order?        @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  orderItem     OrderItem?    @relation(fields: [orderItemId], references: [id], onDelete: SetNull)
+  feelings      ReviewFeeling[]
+
+  // 同一订单同一菜品只允许一条评价；线下评价通过部分唯一索引思路在应用层限频
+  @@unique([orderId, dishId, userId])
+  @@index([dishId, status, createdAt])
+  @@index([userId, createdAt])
+}
+
+model ReviewFeeling {
+  id        String       @id @default(cuid())
+  reviewId  String
+  group     FeelingGroup
+  code      String       // TOO_OILY / PORTION_SMALL / JUST_RIGHT …
+  label     String
+
+  review    Review       @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+
+  @@unique([reviewId, group, code])
+  @@index([code])
+}
+
+model Favorite {
+  id        String   @id @default(cuid())
+  userId    String
+  dishId    String
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dish      Dish     @relation(fields: [dishId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, dishId])
+  @@index([userId, createdAt])
+}
+
+model UserBehavior {
+  id        String       @id @default(cuid())
+  userId    String
+  dishId    String?
+  type      BehaviorType
+  payload   Json?
+  createdAt DateTime     @default(now())
+
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dish      Dish?        @relation(fields: [dishId], references: [id], onDelete: SetNull)
+
+  @@index([userId, type, createdAt])
+  @@index([dishId, createdAt])
+}
+
+// ─────────────────────── 推荐 / 通知 / 审计 ───────────────────────
+
+model RecommendationConfig {
+  id        String   @id
+  weights   Json
+  version   Int      @default(1)
+  updatedAt DateTime @updatedAt
+}
+
+model RecommendationLog {
+  id          String   @id @default(cuid())
+  userId      String
+  context     Json     // 餐次、预算、口味筛选、食堂…
+  algorithm   String   @default("local-hybrid-v1")
+  weights     Json     // 本次实际使用的权重快照
+  explanation Json     // 每条结果的可解释依据
+  createdAt   DateTime @default(now())
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items       RecommendationItem[]
+
+  @@index([userId, createdAt])
+}
+
+model RecommendationItem {
+  id            String   @id @default(cuid())
+  logId         String
+  dishId        String
+  rank          Int
+  score         Float
+  scoreParts    Json     // 各维度归一化得分，便于复盘
+  reason        String
+  wasClicked    Boolean  @default(false)
+  wasDisliked   Boolean  @default(false)
+  createdAt     DateTime @default(now())
+
+  log           RecommendationLog @relation(fields: [logId], references: [id], onDelete: Cascade)
+  dish          Dish     @relation(fields: [dishId], references: [id], onDelete: Restrict)
+
+  @@unique([logId, dishId])
+  @@index([dishId, createdAt])
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  type      NotificationType
+  title     String
+  body      String
+  data      Json?
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt, createdAt])
+}
+
+model SystemAnnouncement {
+  id          String            @id @default(cuid())
+  title       String
+  body        String
+  scope       AnnouncementScope @default(ALL)
+  canteenId   String?
+  stallId     String?
+  authorId    String?
+  publishedAt DateTime?
+  expiresAt   DateTime?
+  createdAt   DateTime          @default(now())
+
+  canteen     Canteen?          @relation(fields: [canteenId], references: [id], onDelete: Cascade)
+  stall       Stall?            @relation(fields: [stallId], references: [id], onDelete: Cascade)
+  author      User?             @relation("AnnouncementAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+
+  @@index([scope, publishedAt])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  actorRole  UserRole?
+  action     String
+  targetType String
+  targetId   String?
+  metadata   Json?
+  ip         String?  // 脱敏后存储
+  createdAt  DateTime @default(now())
+
+  actor      User?    @relation("AuditActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([actorId, createdAt])
+  @@index([action, createdAt])
+}

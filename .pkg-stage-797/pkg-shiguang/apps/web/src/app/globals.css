@@ -1,0 +1,103 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #FFFBF5;
+  --surface: #FFFFFF;
+  --surface-soft: #F7F2E9;
+  --text: #252923;
+  --muted: #6B7167;
+  --line: #EDE6DA;
+  --accent: #FF8A4C;
+  --accent-deep: #E96F35;
+  --positive: #4F7D61;
+}
+
+.dark {
+  --bg: #1C201B;
+  --surface: #262B24;
+  --surface-soft: #2F362D;
+  --text: #F5F1E8;
+  --muted: #A9B2A4;
+  --line: #3A4237;
+  --accent: #FF9A62;
+  --accent-deep: #FF8A4C;
+  --positive: #8FC4A2;
+}
+
+* { box-sizing: border-box; }
+html, body { padding: 0; margin: 0; }
+body {
+  /* 极淡的双色径向渐变，让大面积留白不至于死板；不影响对比度 */
+  background:
+    radial-gradient(1200px 600px at 100% -8%, rgba(255, 138, 76, 0.10), transparent 62%),
+    radial-gradient(900px 520px at -10% 8%, rgba(127, 160, 124, 0.09), transparent 58%),
+    var(--bg);
+  background-attachment: fixed;
+  color: var(--text);
+  font-family: 'Noto Sans SC', Inter, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.dark body {
+  background:
+    radial-gradient(1200px 600px at 100% -8%, rgba(255, 138, 76, 0.10), transparent 62%),
+    radial-gradient(900px 520px at -10% 8%, rgba(143, 196, 162, 0.07), transparent 58%),
+    var(--bg);
+}
+
+@layer components {
+  .sg-card {
+    @apply rounded-card border border-line bg-white;
+    background: var(--surface);
+    border-color: var(--line);
+    /* 双层阴影：近处一层压边，远处一层扩散，比单层投影更有层次 */
+    box-shadow: 0 1px 2px rgba(34, 30, 24, 0.04), 0 10px 28px -14px rgba(34, 30, 24, 0.16);
+    transition: box-shadow 0.22s ease, transform 0.22s ease, border-color 0.22s ease;
+  }
+  .sg-card:hover {
+    box-shadow: 0 1px 2px rgba(34, 30, 24, 0.05), 0 16px 36px -14px rgba(34, 30, 24, 0.22);
+    transform: translateY(-2px);
+    border-color: var(--accent);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .sg-card, .sg-card:hover { transition: none; transform: none; }
+  }
+  .sg-chip {
+    @apply inline-flex items-center rounded-full px-3 py-2 text-xs transition-colors;
+    background: var(--surface-soft);
+    color: var(--muted);
+  }
+  .sg-chip-active {
+    background: #FFE7D6;
+    color: var(--accent-deep);
+    border: 1px solid var(--accent);
+  }
+  .sg-btn-primary {
+    @apply rounded-pill px-5 py-3 text-sm font-semibold text-white transition-transform active:scale-[0.98];
+    background: linear-gradient(90deg, #FF9A5C, var(--accent-deep));
+  }
+  .sg-input {
+    @apply w-full rounded-xl border border-line bg-white px-4 py-3 text-sm outline-none focus:border-orange;
+    background: var(--surface);
+    color: var(--text);
+  }
+  .sg-skeleton {
+    @apply animate-pulse rounded-xl;
+    background: var(--surface-soft);
+  }
+}
+
+/* 尊重系统「减少动态效果」偏好 */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+.sg-scroll::-webkit-scrollbar { display: none; }
+.sg-scroll { -ms-overflow-style: none; scrollbar-width: none; }

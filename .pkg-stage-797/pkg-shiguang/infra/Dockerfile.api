@@ -1,0 +1,51 @@
+FROM node:22-alpine AS base
+# Prisma 查询引擎在 alpine(musl) 上需要 openssl 与 libc6-compat
+RUN apk add --no-cache openssl libc6-compat
+RUN corepack enable && corepack prepare pnpm@9.12.0 --activate
+WORKDIR /app
+
+FROM base AS deps
+COPY package.json pnpm-workspace.yaml tsconfig.base.json ./
+COPY packages/shared/package.json packages/shared/
+COPY apps/api/package.json apps/api/
+# 只安装 api 及其依赖，避免把 web 的 next/react 一起装进后端镜像
+RUN pnpm install --no-frozen-lockfile --filter @shiguang/api... --filter @shiguang/shared
+
+FROM base AS build
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/apps/api/node_modules ./apps/api/node_modules
+COPY --from=deps /app/packages/shared/node_modules ./packages/shared/node_modules
+COPY . .
+# monorepo 下 @prisma/client 装在 apps/api/node_modules，
+# 必须在 api 目录内、就 schema 生成，否则 Prisma 会误判未安装并回退到 pnpm add
+RUN cd apps/api \
+  && cp ../../prisma/schema.prisma ./schema.build.prisma \
+  && PRISMA_GENERATE_SKIP_AUTOINSTALL=true ./node_modules/.bin/prisma generate --schema ./schema.build.prisma \
+  && rm -f ./schema.build.prisma
+RUN pnpm --filter @shiguang/shared build && pnpm --filter @shiguang/api build
+
+FROM node:22-alpine AS runtime
+WORKDIR /app
+ENV NODE_ENV=production
+# 运行时同样需要 openssl 供 Prisma 引擎使用。
+# pnpm 直接装进镜像：corepack 的缓存在 root 家目录，切到 app 用户后会重新下载，
+# 网络抖动时容器就起不来。
+RUN apk add --no-cache openssl libc6-compat \
+  && npm install -g pnpm@9.12.0 \
+  && addgroup -S app && adduser -S app -G app
+COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app/apps/api/node_modules ./apps/api/node_modules
+COPY --from=build /app/packages/shared ./packages/shared
+COPY --from=build /app/apps/api/dist ./apps/api/dist
+COPY --from=build /app/prisma ./prisma
+COPY --from=build /app/package.json ./package.json
+COPY --from=build /app/pnpm-workspace.yaml ./pnpm-workspace.yaml
+COPY --from=build /app/.env.example ./.env.example
+COPY --from=build /app/scripts ./scripts
+COPY --from=build /app/tsconfig.base.json ./tsconfig.base.json
+RUN mkdir -p /app/uploads && chown -R app:app /app && chmod +x /app/scripts/entrypoint-api.sh
+USER app
+EXPOSE 3001
+HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
+  CMD wget -qO- http://127.0.0.1:3001/api/v1/health || exit 1
+CMD ["sh", "/app/scripts/entrypoint-api.sh"]
