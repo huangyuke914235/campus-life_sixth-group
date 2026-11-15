@@ -30,7 +30,7 @@ playwright-report/
 # 注意：不要写 *.png / *.jpg，否则会误伤 apps/web/public/images/dishes/ 里的运行必需图片
 # (已放开：/*.pptx 允许入库)
 # (已放开：/*.png 允许入库)
-/generated-images/
+# (已放开：/generated-images/ 项目素材入库)
 /食光有数-设计稿/
 # (已放开：/lanyard-app/ 按用户要求入库)
 campus-life-deploy.zip
@@ -46,7 +46,7 @@ shiguang/backups/
 # ── 本地工作目录与归档（不入库）──
 /.pkg-stage/
 /archive/
-/generated-videos/
+# (已放开：/generated-videos/ 项目素材入库)
 /食光有数-设计稿/
 # (已放开：HANDOVER.local.md 按用户要求入库)
 
