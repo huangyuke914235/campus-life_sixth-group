@@ -8,7 +8,7 @@ import { Type } from 'class-transformer';
 import { createHash, randomUUID } from 'node:crypto';
 import { Prisma } from '@prisma/client';
 import {
-  calculateOrderTotal, campusDate, canTransition, checkSlotBookable, MEAL_TYPES, parseCampusDate,
+  calculateOrderTotal, campusDate, campusTime, canTransition, checkSlotBookable, MEAL_TYPES, ORDER_STATUSES, parseCampusDate,
   type CartLine, type MealType,
 } from '@shiguang/shared';
 import { PrismaService } from '../prisma/prisma.service';
@@ -22,6 +22,7 @@ class OrderLineDto {
 }
 
 class CreateOrderDto {
+  @IsOptional() @IsString() @IsNotEmpty() @MaxLength(128) expectedUserId?: string;
   @IsOptional() @IsString() stallId?: string;
   @IsString() @IsNotEmpty() pickupSlotId!: string;
   @IsOptional() @IsString() scheduledDate?: string;
@@ -85,6 +86,9 @@ export class OrdersService {
 
   async create(user: AuthUser, dto: CreateOrderDto) {
     if (user.role === 'MERCHANT') throw Errors.forbidden('商户账号不能代学生下单');
+    if (dto.expectedUserId != null && dto.expectedUserId !== user.id) {
+      throw Errors.forbidden('登录账号已切换，请重新打开结算页');
+    }
     const requested = [...dto.items].sort((a, b) => a.dishId.localeCompare(b.dishId));
     if (new Set(requested.map((item) => item.dishId)).size !== requested.length) {
       throw Errors.invalidParam('同一菜品不能重复出现在订单中');
@@ -138,7 +142,16 @@ export class OrdersService {
           throw Errors.priceChanged(lines.map(({ dishId, unitPriceCents }) => ({ dishId, unitPriceCents })));
         }
 
-        const { items: snapshots, totalCents } = calculateOrderTotal(lines);
+        let totals: ReturnType<typeof calculateOrderTotal>;
+        try {
+          totals = calculateOrderTotal(lines);
+        } catch (error) {
+          if (error instanceof Error && error.message === 'TOTAL_OVERFLOW') {
+            throw Errors.invalidParam('订单总金额超出上限，请减少购买数量');
+          }
+          throw error;
+        }
+        const { items: snapshots, totalCents } = totals;
         const slotUpdated = await tx.pickupSlot.updateMany({
           where: { id: slot.id, isClosed: false, booked: { lt: slot.capacity } },
           data: { booked: { increment: 1 } },
@@ -186,11 +199,17 @@ export class OrdersService {
   }
 
   async listMine(user: AuthUser, page = 1, pageSize = 10, status?: string) {
-    const where: Prisma.OrderWhereInput = { userId: user.id, ...(status ? { status: status as never } : {}) };
+    if (!Number.isSafeInteger(page) || page < 1 || page > 1_000_000
+      || !Number.isSafeInteger(pageSize) || pageSize < 1 || pageSize > 50) {
+      throw Errors.invalidParam('订单分页参数不合法');
+    }
+    const orderStatus = ORDER_STATUSES.find((candidate) => candidate === status);
+    if (status !== undefined && !orderStatus) throw Errors.invalidParam('订单状态不合法');
+    const where: Prisma.OrderWhereInput = { userId: user.id, status: orderStatus };
     const [rows, total] = await Promise.all([
       this.prisma.order.findMany({
         where, include: { items: true, stall: { include: { canteen: true } }, pickupSlot: true, pickupToken: true, reviews: { select: { id: true, dishId: true } } },
-        orderBy: { createdAt: 'desc' }, skip: (page - 1) * pageSize, take: pageSize,
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], skip: (page - 1) * pageSize, take: pageSize,
       }),
       this.prisma.order.count({ where }),
     ]);
@@ -242,6 +261,12 @@ export class OrdersService {
         await this.cancelOrder(tx, order, dto.reason ?? '商户取消');
       } else {
         const now = new Date();
+        const slot = await tx.pickupSlot.findUniqueOrThrow({
+          where: { id: order.pickupSlotId },
+          select: { date: true, endTime: true },
+        });
+        const deadline = campusTime(slot.date.toISOString().slice(0, 10), slot.endTime);
+        if (!deadline || now >= deadline) throw new ConflictException('已超过取餐时段结束时间，无法继续备餐');
         const updated = await tx.order.updateMany({
           where: { id, status: order.status },
           data: { status: next, ...(next === 'CONFIRMED' ? { confirmedAt: now } : {}), ...(next === 'READY' ? { readyAt: now } : {}) },
@@ -256,17 +281,47 @@ export class OrdersService {
     });
   }
 
-  async stallBoard(user: AuthUser, date?: string) {
+  async stallBoard(user: AuthUser, options: { date?: string; stallId?: string; activeOnly?: boolean; page?: number } = {}) {
+    const { date, stallId, activeOnly, page } = options;
     const scheduledDate = parseCampusDate(date ?? campusDate(new Date()));
     if (!scheduledDate) throw Errors.invalidParam('日期格式不正确');
+    if (stallId) assertStallScope(user, stallId);
+    if (page !== undefined && (!Number.isSafeInteger(page) || page < 1)) throw Errors.invalidParam('页码不合法');
+
     const where: Prisma.OrderWhereInput = {
-      scheduledDate, ...(user.role === 'MERCHANT' ? { stallId: { in: user.stallIds ?? [] } } : {}),
+      scheduledDate,
+      stallId: stallId || (user.role === 'MERCHANT' ? { in: user.stallIds ?? [] } : undefined),
+      ...(activeOnly ? { status: { in: ['PENDING', 'CONFIRMED', 'PREPARING', 'READY'] } } : {}),
     };
-    const rows = await this.prisma.order.findMany({
-      where, include: { items: true, pickupSlot: true, user: { select: { displayName: true } } },
-      orderBy: { createdAt: 'desc' }, take: 200,
-    });
-    return rows.map(publicOrder);
+    if (page === undefined) {
+      const rows = await this.prisma.order.findMany({
+        where, include: { items: true, pickupSlot: true, user: { select: { displayName: true } } },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], take: 200,
+      });
+      return rows.map(publicOrder);
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const pageSize = 20;
+      const total = await tx.order.count({ where });
+      const totalPages = Math.max(1, Math.ceil(total / pageSize));
+      const currentPage = Math.min(page, totalPages);
+      const orderBy: Prisma.OrderOrderByWithRelationInput[] = activeOnly
+        ? [{ pickupSlot: { startTime: 'asc' } }, { createdAt: 'asc' }, { id: 'asc' }]
+        : [{ createdAt: 'desc' }, { id: 'desc' }];
+      const items = await tx.order.findMany({
+        where,
+        select: {
+          id: true, number: true, status: true, totalCents: true, stallId: true,
+          items: { select: { dishName: true, quantity: true } },
+          pickupSlot: { select: { startTime: true, endTime: true } },
+          stall: { select: { name: true } },
+          user: { select: { displayName: true } },
+        },
+        orderBy, skip: (currentPage - 1) * pageSize, take: pageSize,
+      });
+      return { items, meta: { page: currentPage, pageSize, total, totalPages } };
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
   }
 }
 
@@ -281,13 +336,25 @@ export class OrdersController {
 
   @Get()
   async listMine(@CurrentUser() user: AuthUser, @Query('page') page = '1', @Query('pageSize') pageSize = '10', @Query('status') status?: string) {
-    return ok(await this.service.listMine(user, Number(page), Number(pageSize), status));
+    const parsePage = (value: string) => typeof value === 'string' && /^\d+$/.test(value) ? Number(value) : Number.NaN;
+    return ok(await this.service.listMine(user, parsePage(page), parsePage(pageSize), status));
   }
 
   @Roles('MERCHANT', 'ADMIN')
   @Get('stall/board')
-  async board(@CurrentUser() user: AuthUser, @Query('date') date?: string) {
-    return ok(await this.service.stallBoard(user, date));
+  async board(
+    @CurrentUser() user: AuthUser,
+    @Query('date') date?: string,
+    @Query('stallId') stallId?: string,
+    @Query('activeOnly') activeOnly?: string,
+    @Query('page') page?: string,
+  ) {
+    if (activeOnly !== undefined && activeOnly !== 'true' && activeOnly !== 'false') {
+      throw Errors.invalidParam('订单筛选参数不合法');
+    }
+    return ok(await this.service.stallBoard(user, {
+      date, stallId, activeOnly: activeOnly === 'true', page: page === undefined ? undefined : Number(page),
+    }));
   }
 
   @Get(':id')

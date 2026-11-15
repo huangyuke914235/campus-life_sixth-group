@@ -22,6 +22,7 @@ import * as argon2 from 'argon2';
 import { createHash, randomBytes } from 'node:crypto';
 import type { Request, Response } from 'express';
 import type { Prisma } from '@prisma/client';
+import { demoAccountsEnabled, isDemoAccountEmail } from './demo-accounts';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   AuthUser, CurrentUser, Errors, IS_PUBLIC_KEY, Public, Roles, RolesGuard,
@@ -59,11 +60,7 @@ class LoginDto {
 const sha256 = (v: string): string => createHash('sha256').update(v).digest('hex');
 
 function isDisabledDemoAccount(email: string, config: ConfigService): boolean {
-  if (config.get('NODE_ENV') !== 'production' && config.get('ENABLE_DEMO_ACCOUNTS') !== 'false') return false;
-  const normalized = email.toLowerCase();
-  const demoEmails = ['DEMO_STUDENT_A_EMAIL', 'DEMO_STUDENT_B_EMAIL', 'DEMO_MERCHANT_EMAIL', 'DEMO_ADMIN_EMAIL'];
-  return normalized.endsWith('@demo.shiguang.local')
-    || demoEmails.some((key) => config.get<string>(key)?.trim().toLowerCase() === normalized);
+  return !demoAccountsEnabled(config) && isDemoAccountEmail(email, config);
 }
 
 @Injectable()
@@ -194,7 +191,7 @@ export class AuthService {
 
   async register(dto: RegisterDto, req: Request, res: Response) {
     const email = dto.email.trim().toLowerCase();
-    if (isDisabledDemoAccount(email, this.config)) throw Errors.invalidParam('该邮箱不可注册');
+    if (isDemoAccountEmail(email, this.config)) throw Errors.invalidParam('该邮箱不可注册');
     const exists = await this.prisma.user.findUnique({ where: { email } });
     if (exists) throw Errors.invalidParam('该邮箱已注册');
     const passwordHash = await this.passwords.hash(dto.password);
@@ -262,10 +259,10 @@ export class AuthService {
   }
 
   async demoAccounts() {
-    if (this.config.get('ENABLE_DEMO_ACCOUNTS') !== 'true') return { enabled: false, accounts: [] };
+    if (!demoAccountsEnabled(this.config)) return { enabled: false, accounts: [] };
 
     const users = await this.prisma.user.findMany({
-      where: { email: { endsWith: '@demo.shiguang.local' } },
+      where: { email: { endsWith: '@demo.shiguang.local', mode: 'insensitive' }, isActive: true, privacyDeleteAt: null },
       select: { email: true, displayName: true, role: true },
     });
 

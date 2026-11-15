@@ -2,6 +2,7 @@ import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'node:crypto';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BizCode, type AuthUser } from '../common';
+import { MenusService } from '../menus/menus.module';
 import { PickupService } from '../pickup/pickup.module';
 import { PrismaService } from '../prisma/prisma.service';
 import { OrdersTask } from '../tasks/tasks.module';
@@ -93,7 +94,7 @@ describe.runIf(Boolean(databaseUrl))('订单与取餐 · PostgreSQL', () => {
       data: { stallId: stall.id, date, mealType, startTime: '12:00', endTime: '12:30', cutoffMinutes: 15, capacity },
     });
     return {
-      student, second, merchant, inventory, slot, dish,
+      student, second, merchant, inventory, slot, dish, canteen,
       request: {
         stallId: stall.id, pickupSlotId: slot.id, scheduledDate, mealType,
         items: [{ dishId: dish.id, quantity: 1, expectedUnitPriceCents: 1200 }],
@@ -110,6 +111,80 @@ describe.runIf(Boolean(databaseUrl))('订单与取餐 · PostgreSQL', () => {
     const token = await pickup.token(f.student, order.id);
     return { order, token };
   }
+
+  it('恢复请求重用原订单，即使最后一个名额已满或时段已结束', async () => {
+    const f = await fixture(1, 1);
+    const request = { ...f.request, expectedUserId: f.student.id };
+    const created = await orders.create(f.student, request);
+    vi.setSystemTime(new Date('2026-11-12T04:31:00Z'));
+    await expect(orders.create(f.student, request)).resolves.toMatchObject({
+      order: { id: created.order.id }, idempotent: true,
+    });
+    await expect(orders.create(f.second, request)).rejects.toMatchObject({ status: 403 });
+    await expect(orders.changeStatus(f.merchant, created.order.id, { status: 'CONFIRMED' }))
+      .rejects.toMatchObject({ status: 409 });
+    expect(await prisma.order.count({ where: { pickupSlotId: f.slot.id } })).toBe(1);
+    expect(await prisma.pickupSlot.findUniqueOrThrow({ where: { id: f.slot.id } })).toMatchObject({ booked: 1 });
+    expect(await prisma.inventory.findUniqueOrThrow({ where: { id: f.inventory.id } })).toMatchObject({ remaining: 0 });
+  });
+
+  it('订单列表拒绝无效分页和未知状态', async () => {
+    const f = await fixture();
+    await expect(orders.listMine(f.student, 1, 50)).resolves.toMatchObject({ meta: { pageSize: 50, totalPages: 1 } });
+    for (const [page, size] of [[Number.NaN, 10], [0, 10], [1, 0], [1, 51]]) {
+      await expect(orders.listMine(f.student, page, size)).rejects.toMatchObject({ status: 400 });
+    }
+    await expect(orders.listMine(f.student, 1, 10, 'UNKNOWN')).rejects.toMatchObject({ status: 400 });
+  });
+
+  it('商户按档口查询待处理订单，历史订单和其他档口不会挤占分页', async () => {
+    const f = await fixture();
+    const other = await fixture();
+    const orderData = (target: typeof f, status: 'PENDING' | 'COMPLETED') => ({
+      number: randomUUID(), idempotencyKey: randomUUID(),
+      stallId: target.slot.stallId, canteenId: target.canteen.id,
+      pickupSlotId: target.slot.id, userId: target.student.id, scheduledDate: date, mealType,
+      totalCents: 1200, status,
+    });
+    await prisma.order.createMany({
+      data: [
+        ...Array.from({ length: 21 }, () => orderData(f, 'PENDING')),
+        ...Array.from({ length: 200 }, () => orderData(f, 'COMPLETED')),
+        ...Array.from({ length: 20 }, () => orderData(other, 'PENDING')),
+      ],
+    });
+    const merchant = { ...f.merchant, stallIds: [f.slot.stallId, other.slot.stallId] };
+    const options = { date: scheduledDate, stallId: f.slot.stallId, activeOnly: true };
+    const first = await orders.stallBoard(merchant, { ...options, page: 1 });
+    const second = await orders.stallBoard(merchant, { ...options, page: 2 });
+    if (Array.isArray(first) || Array.isArray(second)) throw new Error('Expected paginated board');
+    expect(first.meta).toEqual({ page: 1, pageSize: 20, total: 21, totalPages: 2 });
+    expect(first.items).toHaveLength(20);
+    expect(second.items).toHaveLength(1);
+    const all = [...first.items, ...second.items];
+    expect(new Set(all.map((order) => order.id)).size).toBe(21);
+    expect(all.every((order) => order.status === 'PENDING' && order.stallId === f.slot.stallId)).toBe(true);
+    expect(second.items[0]).not.toHaveProperty('idempotencyKey');
+    await expect(orders.stallBoard(f.merchant, { ...options, stallId: other.slot.stallId, page: 1 }))
+      .rejects.toMatchObject({ status: 403 });
+    const legacy = await orders.stallBoard(f.merchant, { date: scheduledDate });
+    expect(Array.isArray(legacy)).toBe(true);
+  });
+
+  it('暂停营业的档口或食堂菜单从学生列表隐藏，档口仍能管理自己的菜单', async () => {
+    const f = await fixture();
+    const menus = new MenusService(prisma);
+    const query = () => menus.query(scheduledDate, mealType, f.canteen.id, f.slot.stallId);
+    const manage = () => menus.query(scheduledDate, mealType, undefined, f.slot.stallId, f.merchant);
+    expect(await query()).toHaveLength(1);
+    await prisma.stall.update({ where: { id: f.slot.stallId }, data: { isActive: false } });
+    expect(await query()).toHaveLength(0);
+    expect(await manage()).toHaveLength(1);
+    await prisma.stall.update({ where: { id: f.slot.stallId }, data: { isActive: true } });
+    await prisma.canteen.update({ where: { id: f.canteen.id }, data: { isOpen: false } });
+    expect(await query()).toHaveLength(0);
+    expect(await manage()).toHaveLength(1);
+  });
 
   it('20 次同键重试只创建一单；同键异内容冲突；其他账号使用自己的作用域', async () => {
     const f = await fixture();

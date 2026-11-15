@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { endpoints, get, post, patch } from '@/lib/api';
 import { campusDate, campusMealType } from '@shiguang/shared';
 import { MEAL_LABELS } from '@/lib/meals';
+import { formatOrderMoney } from '@/lib/order-display';
 
 interface MenuItem { id: string; dishId: string; isAvailable: boolean; inventoryId: string | null; stockTotal: number; stockRemaining: number; stockVersion: number | null; dish: { name: string; priceCents: number; status: string } }
 interface Menu { id: string; stallId: string; mealType: string; status: string; items: MenuItem[]; stall: { name: string; canteen: { name: string } } }
@@ -121,7 +122,7 @@ export default function AdminMenusPage() {
               return (
                 <button key={d.id} type="button" aria-pressed={on}
                   onClick={() => setPicked((p) => (p.includes(d.id) ? p.filter((x) => x !== d.id) : [...p, d.id]))}
-                  className={`sg-chip ${on ? 'sg-chip-active' : ''}`}>{d.name} · ¥{(d.priceCents / 100).toFixed(0)}</button>
+                  className={`sg-chip ${on ? 'sg-chip-active' : ''}`}>{d.name} · {formatOrderMoney(d.priceCents)}</button>
               );
             })}
             {dishes.data?.items.length === 0 && <span className="text-xs text-muted">该档口还没有菜品。</span>}
@@ -139,7 +140,9 @@ export default function AdminMenusPage() {
               <div key={i.id} className="flex flex-wrap items-center justify-between gap-2 border-b border-line py-2 last:border-0">
                 <div>
                   <p className="text-xs font-semibold">{i.dish.name}</p>
-                  <p className="text-[11px] text-muted">¥{(i.dish.priceCents / 100).toFixed(0)} · 已售 {i.stockTotal - i.stockRemaining} / {i.stockTotal}</p>
+                  <p className="text-[11px] text-muted">
+                    {formatOrderMoney(i.dish.priceCents)} · {i.inventoryId ? `可售 ${i.stockRemaining} / 总量 ${i.stockTotal}` : '未配置库存'}
+                  </p>
                 </div>
                 <div className="flex items-center gap-2">
                   {i.inventoryId && i.stockVersion !== null && (

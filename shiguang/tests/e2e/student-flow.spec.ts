@@ -54,7 +54,7 @@ test.describe('隔离环境预约流程', () => {
     expect(createdResponse.status()).toBe(201);
     const { data: { order } } = await createdResponse.json();
     expect(order.status).toBe('PENDING');
-    await expect(page).toHaveURL(/\/orders$/);
+    await expect(page).toHaveURL(new URL('/orders/' + order.id, page.url()).href);
     await withFixtureDb(async (db) => {
       const inventory = await db.inventory.findUniqueOrThrow({
         where: { dishId_date_mealType: { dishId: fixture.dishId, date: fixture.pickupDate, mealType: fixture.mealType } },

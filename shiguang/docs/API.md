@@ -61,7 +61,10 @@ Base：`/api/v1`（Nginx 反代下为同域 `/api/v1`）
 - 创建订单以 `pickupSlotId` 对应的档口、日期和餐次为准。旧客户端可提交 `stallId`、`scheduledDate` 和 `mealType`，提供的值须与时段一致。
 - `items[].expectedUnitPriceCents` 接收客户端确认的单价。价格发生变化时，返回 `10015`，`data.prices` 包含各明细的 `dishId` 与最新 `unitPriceCents`。确认新报价后使用新幂等键提交。
 - 同一账号使用同一幂等键重试同一请求会返回原订单。使用该键提交不同内容时返回 `10008`。新预约暂停期间，可重试已接受的订单、取消订单和核销。
+- 创建订单可填 `expectedUserId`，标明发起结算的当前账号。会话账号不匹配时返回 403。网络中断后可用原请求和原幂等键重试，已创建的订单仍可找回。
+- `GET /orders` 的 `page` 从 1 开始，`pageSize` 取 1–50。传入未知的 `status` 或无效分页参数时返回 400。
 - 商户操作台可确认、开始备餐、标记待取或取消订单。取餐完成由核销入口登记。取消或过期释放时段名额，开始备餐前的订单同时归还库存。已备餐菜品由档口确认后另行计入可售库存。
+- `GET /orders/stall/board?date=YYYY-MM-DD&stallId=...&activeOnly=true&page=1` 在分页前按授权档口与订单状态筛选，返回 `{ items, meta }`，每页最多 20 笔。待处理订单按取餐时段及下单时间排列。省略 `page` 时兼容原来的数组响应。
 
 ### 取餐 `/pickup`
 `GET /slots?stallId&date&mealType` · `POST /slots`（MERCHANT/ADMIN）· `GET /orders/:orderId/token`（6 位码 + 二维码 data URL）· `POST /verify`（后端校验状态/档口/有效期，防重放）

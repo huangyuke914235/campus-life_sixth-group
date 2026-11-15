@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { create } from 'zustand';
 import { ApiError, SESSION_EXPIRED_EVENT } from '@/lib/api';
+import { shoppingLoginHref } from '@/lib/shopping-return';
 
 interface ThemeState { dark: boolean; toggle: () => void }
 export const useTheme = create<ThemeState>((set) => ({
@@ -31,7 +32,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     function onExpired() {
       client.clear();
-      router.replace('/login');
+      const { pathname, search } = window.location;
+      if (pathname !== '/login') router.replace(shoppingLoginHref(pathname + search));
     }
     window.addEventListener(SESSION_EXPIRED_EVENT, onExpired);
     return () => window.removeEventListener(SESSION_EXPIRED_EVENT, onExpired);

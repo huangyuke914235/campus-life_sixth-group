@@ -8,6 +8,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { get, post, endpoints, ApiError } from '@/lib/api';
+import { shoppingReturnPath } from '@/lib/shopping-return';
 
 const schema = z.object({
   email: z.string().email('请输入有效邮箱'),
@@ -39,7 +40,8 @@ export default function LoginPage() {
     // 注册后先去设置口味，否则进去就是冷启动，推荐没有依据
     onSuccess: ({ role }) => {
       qc.clear();
-      router.push(mode === 'register' ? '/onboarding' : role === 'STUDENT' ? '/dashboard' : '/admin');
+      const returnTo = shoppingReturnPath(new URLSearchParams(window.location.search).get('returnTo'));
+      router.replace(mode === 'register' ? '/onboarding' : role === 'STUDENT' ? returnTo ?? '/dashboard' : '/admin');
     },
     onError: (e: unknown) => setError(e instanceof ApiError ? e.message : '登录失败，请稍后重试'),
   });

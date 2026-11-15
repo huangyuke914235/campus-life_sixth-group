@@ -45,7 +45,10 @@ export class MenusService {
         ...(actor ? {} : { status: 'PUBLISHED' }),
         ...(mealType ? { mealType: mealType as MealType } : {}),
         ...stallScope,
-        ...(canteenId ? { stall: { canteenId } } : {}),
+        stall: {
+          canteenId,
+          ...(actor ? {} : { isActive: true, canteen: { isOpen: true } }),
+        },
       },
       include: {
         stall: { include: { canteen: { select: { name: true } } } },

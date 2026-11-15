@@ -18,7 +18,8 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
       COOKIE_SECURE: "true"
       CSRF_ENABLED: "true"
-      ENABLE_DEMO_ACCOUNTS: "false"
+      ENABLE_DEMO_ACCOUNTS: "${ENABLE_DEMO_ACCOUNTS:-false}"
+      ALLOW_DEMO_ACCOUNTS: "${ALLOW_DEMO_ACCOUNTS:-false}"
       SEED_DEMO_DATA: "false"
     deploy:
       resources:

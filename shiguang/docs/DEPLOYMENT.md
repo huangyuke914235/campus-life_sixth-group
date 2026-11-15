@@ -78,6 +78,13 @@ bash scripts/package.sh backups/releases/campus-life-release.tar.gz
 | 取餐码核销失败 | 订单未到 `READY`、凭证过期、档口不匹配（错误码 10014） |
 | 演示初始化失败 | 在隔离开发库检查 `DATABASE_URL`、`DEMO_DATABASE_NAME`、`DEMO_PASSWORD` 与迁移状态 |
 
+在专用演示站恢复已有账号时，将服务使用的环境文件设置为
+`ENABLE_DEMO_ACCOUNTS=true`、`ALLOW_DEMO_ACCOUNTS=true`，并保持
+`SEED_DEMO_DATA=false`。使用对应站点的 Compose 配置更新 API 后，
+通过 `/api/v1/auth/demo-accounts` 检查展示，再用已授权的体验账号验证登录。
+开关只控制可用性，已有账号、密码散列和关联记录保留。若开启后列表为空，
+先核对该实例连接的数据库以及目标账号的状态。首次填充演示数据应使用专用隔离库。
+
 ## 10. 上线前的硬性检查
 
 - [ ] 全部密钥已替换，`.env` 未提交进仓库
