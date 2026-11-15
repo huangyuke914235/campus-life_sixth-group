@@ -9,13 +9,13 @@
 | 层级 | 命令 | 结果 |
 |---|---|---|
 | 单元测试（shared） | `corepack pnpm --filter @shiguang/shared test` | **45 passed** |
-| 单元测试（api） | `corepack pnpm --filter @shiguang/api test` | **13 passed，14 skipped**（集成用例无 DB URL 时跳过） |
+| 单元测试（api） | `corepack pnpm --filter @shiguang/api test` | **17 passed，24 skipped**（集成用例无 DB URL 时跳过） |
 | 集成测试（真实 PostgreSQL） | `bash scripts/verify-integration.sh` | **20 passed / 3 files** |
 | 备份恢复演练 | `bash scripts/verify-restore.sh` | **通过**（行数一致、哨兵可读） |
 | 类型检查 | `pnpm -r typecheck` | **3 包 0 error** |
 | E2E（Playwright） | `pnpm test:e2e` | **未运行**（需装浏览器，见第五节） |
 
-**说明**：`shared 45` 中包含 2 条预算硬约束回归用例（2026-11-13 新增）；`api 13` 是 common 层 + 运行时校验；`20 个集成` 需要 Docker。
+**说明**：`shared 45` 中包含 2 条预算硬约束回归用例（2026-11-13 新增）；`api 17` 是 common 层 + 运行时校验 + 体验账号模块；`20 个集成` 需要 Docker。
 
 ---
 
