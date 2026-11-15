@@ -1,9 +1,10 @@
 name: Shiguang CI
 
+# 项目已归档（2026-11-15），CI 改为手动触发。
+# 原因：每次 push 自动运行会产生大量失败通知，而归档后无持续集成需求。
+# 需要验证时：GitHub → Actions → Shiguang CI → Run workflow
 on:
-  push:
-    branches: [main]
-  pull_request:
+  workflow_dispatch:
 
 jobs:
   build-and-test:
