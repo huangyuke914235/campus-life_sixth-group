@@ -157,6 +157,11 @@ ssh azureuser@<IP> 'cd /opt/shiguang/pkg-shiguang && docker compose logs api --t
 
 **情况 A：有备份**（推荐）
 
+> **仓库里已有一份现成的**：`data/demo-data-20261115.sql.gz`（339K，clone 后直接可用）。
+> 如果想用自己最新导出的备份，按下面步骤替换。
+
+
+
 ```bash
 # 把备份传上去
 cat ~/shiguang-backup.sql.gz | ssh azureuser@<IP> 'cat > /opt/shiguang/pkg-shiguang/restore.sql.gz'
