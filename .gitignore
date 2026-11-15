@@ -49,3 +49,7 @@ shiguang/backups/
 /generated-videos/
 /食光有数-设计稿/
 HANDOVER.local.md
+
+# 数据库备份（含真实用户数据，绝不入库）
+db-backup*.sql.gz
+*.sql.gz
